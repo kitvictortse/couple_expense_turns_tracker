@@ -1,7 +1,7 @@
 // Your Turn - PWA Service Worker
-// Cache-first for static assets, network-first for API calls
+// Network-first for pages & API, cache-first for static assets
 
-const CACHE_NAME = "your-turn-v1";
+const CACHE_NAME = "your-turn-v2";
 
 const STATIC_ASSETS = ["/"];
 
@@ -29,7 +29,7 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Always go network-first for API routes
+  // Always network-first for API routes
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(request).catch(
@@ -43,7 +43,23 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for everything else
+  // Network-first for HTML navigation (page shell)
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request)),
+    );
+    return;
+  }
+
+  // Cache-first for static assets (JS, CSS, fonts, images)
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
