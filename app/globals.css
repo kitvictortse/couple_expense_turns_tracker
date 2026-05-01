@@ -16,6 +16,21 @@ html {
   --font-sans: var(--font-body);
 }
 
+/* Remove 300ms tap delay on mobile for all interactive elements */
+button,
+a,
+[role="button"],
+input,
+select,
+label {
+  touch-action: manipulation;
+}
+
+/* Suppress iOS tap highlight flash */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   min-height: 100vh;
   background-attachment: fixed;
