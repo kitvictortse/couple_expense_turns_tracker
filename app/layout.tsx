@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Baloo_2, Nunito } from "next/font/google";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import "./globals.css";
 
 const heading = Baloo_2({
@@ -13,8 +14,19 @@ const body = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Couple Expense Tracker",
-  description: "A playful no-password room tracker for payment turns.",
+  title: "Your Turn",
+  description: "A playful couples payment turn tracker.",
+  appleWebApp: {
+    capable: true,
+    title: "Your Turn",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -36,7 +48,10 @@ export default function RootLayout({
       lang="en"
       className={`${heading.variable} ${body.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegistration />
+        {children}
+      </body>
     </html>
   );
 }
