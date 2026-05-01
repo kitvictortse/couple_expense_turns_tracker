@@ -21,15 +21,7 @@ self.addEventListener("activate", (event) => {
           keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)),
         ),
       )
-      .then(() => self.clients.claim())
-      .then(() =>
-        // Force-reload all open windows so they pick up the new SW immediately
-        self.clients
-          .matchAll({ type: "window", includeUncontrolled: true })
-          .then((windowClients) => {
-            windowClients.forEach((client) => client.navigate(client.url));
-          }),
-      ),
+      .then(() => self.clients.claim()),
   );
 });
 
