@@ -74,24 +74,28 @@ export async function GET(request: Request) {
     untilDate = customEnd;
   }
 
-  const records = await prisma.record.findMany({
-    where: {
-      roomId,
-      ...(sinceDate || untilDate
-        ? {
-            createdAt: {
-              ...(sinceDate ? { gte: sinceDate } : {}),
-              ...(untilDate ? { lte: untilDate } : {}),
-            },
-          }
-        : {}),
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  try {
+    const records = await prisma.record.findMany({
+      where: {
+        roomId,
+        ...(sinceDate || untilDate
+          ? {
+              createdAt: {
+                ...(sinceDate ? { gte: sinceDate } : {}),
+                ...(untilDate ? { lte: untilDate } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
-  return NextResponse.json({ records });
+    return NextResponse.json({ records });
+  } catch {
+    return NextResponse.json({ error: "Failed to fetch records." }, { status: 500 });
+  }
 }
 
 type PostBody = {

@@ -11,13 +11,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "roomId is required." }, { status: 400 });
   }
 
-  const room = await prisma.room.findUnique({ where: { id: roomId } });
+  try {
+    const room = await prisma.room.findUnique({ where: { id: roomId } });
 
-  if (!room) {
-    return NextResponse.json({ error: "Room not found." }, { status: 404 });
+    if (!room) {
+      return NextResponse.json({ error: "Room not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ members: room.members });
+  } catch {
+    return NextResponse.json({ error: "Failed to fetch room." }, { status: 500 });
   }
-
-  return NextResponse.json({ members: room.members });
 }
 
 type CreateJoinBody = {
@@ -103,9 +107,7 @@ export async function POST(request: Request) {
       { roomId: room.id, members: room.members, createdAt: room.createdAt },
       { status: 201 },
     );
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Invalid request body.";
-    return NextResponse.json({ error: message }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 }
