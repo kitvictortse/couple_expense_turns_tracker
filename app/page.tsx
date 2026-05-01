@@ -488,9 +488,6 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
-  const [pullY, setPullY] = useState(0);
-  const pullStartYRef = useRef(0);
-  const pullingRef = useRef(false);
   const [categoryPreferences, setCategoryPreferences] = useState<
     CategoryPreference[]
   >(getDefaultCategoryPreferences());
@@ -985,39 +982,11 @@ export default function Home() {
 
   const activeSelectedPayer = selectedPayer ?? session?.userName ?? null;
 
-  const PTR_THRESHOLD = 72; // px to pull before triggering refresh
-
   const triggerRefresh = () => {
     if (refreshing) return;
     setRefreshed(false);
     setRefreshing(true);
     setRefreshKey((k) => k + 1);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY > 0) return;
-    pullStartYRef.current = e.touches[0].clientY;
-    pullingRef.current = true;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!pullingRef.current) return;
-    const dy = e.touches[0].clientY - pullStartYRef.current;
-    if (dy <= 0) {
-      setPullY(0);
-      return;
-    }
-    // Dampen the pull with sqrt for natural resistance
-    setPullY(Math.min(PTR_THRESHOLD * 1.5, Math.sqrt(dy) * 8));
-  };
-
-  const handleTouchEnd = () => {
-    if (!pullingRef.current) return;
-    pullingRef.current = false;
-    if (pullY >= PTR_THRESHOLD) {
-      triggerRefresh();
-    }
-    setPullY(0);
   };
 
   const addRecord = async (category: string) => {
@@ -1316,51 +1285,33 @@ export default function Home() {
       className={`app-shell mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 p-4 pb-8 sm:p-6 ${
         themeMode === "dark" ? "theme-dark" : ""
       }`}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
-      {/* Pull-to-refresh indicator */}
-      {pullY > 0 && (
-        <div
-          className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
-          style={{
-            transform: `translateY(${pullY - 44}px)`,
-            transition: "none",
-          }}
-        >
-          <div
-            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-md ${themeMode === "dark" ? "bg-slate-800" : "bg-white"}`}
-          >
-            <RefreshCw
-              className={`h-5 w-5 transition-transform ${themeMode === "dark" ? "text-sky-400" : "text-sky-500"}`}
-              style={{
-                transform: `rotate(${(pullY / PTR_THRESHOLD) * 360}deg)`,
-              }}
-            />
-          </div>
-        </div>
-      )}
-      {/* Refreshing spinner */}
-      {refreshing && (
-        <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center">
-          <div
-            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-md ${themeMode === "dark" ? "bg-slate-800" : "bg-white"}`}
-          >
-            <RefreshCw
-              className={`h-5 w-5 animate-spin ${themeMode === "dark" ? "text-sky-400" : "text-sky-500"}`}
-            />
-          </div>
-        </div>
-      )}
+      {/* Floating refresh button */}
+      <button
+        type="button"
+        onClick={triggerRefresh}
+        disabled={refreshing}
+        aria-label={copy.refresh}
+        className={`fixed bottom-6 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all active:scale-90 disabled:opacity-60 sm:bottom-8 sm:right-8 ${
+          themeMode === "dark"
+            ? "bg-slate-700 text-sky-400 hover:bg-slate-600"
+            : "bg-white text-sky-500 hover:bg-sky-50"
+        }`}
+      >
+        <RefreshCw className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
+      </button>
       {/* Refreshed toast */}
       {refreshed && !refreshing && (
         <div
-          className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center"
+          className="pointer-events-none fixed inset-x-0 top-safe-or-3 top-3 z-50 flex justify-center"
           onAnimationEnd={() => setRefreshed(false)}
         >
           <div
-            className={`flex items-center gap-2 rounded-full px-4 py-2 shadow-md text-sm font-semibold ${themeMode === "dark" ? "bg-slate-800 text-emerald-400" : "bg-white text-emerald-600"}`}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 shadow-md text-sm font-semibold ${
+              themeMode === "dark"
+                ? "bg-slate-800 text-emerald-400"
+                : "bg-white text-emerald-600"
+            }`}
             style={{ animation: "ptr-toast 1.8s ease forwards" }}
           >
             <Check className="h-4 w-4" />
