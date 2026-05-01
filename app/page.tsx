@@ -61,8 +61,7 @@ const CATEGORY_SETTINGS_STORAGE_KEY = "couple-tracker-category-settings";
 const THEME_STORAGE_KEY = "couple-tracker-theme";
 const MAX_CUSTOM_RANGE_DAYS = 366;
 const MAX_ACCOUNT_MEMBERS = 2;
-const SAVE_NOTICE_DURATION_MS = 600;
-const RECORD_CLICK_COOLDOWN_MS = SAVE_NOTICE_DURATION_MS;
+const SAVE_NOTICE_DURATION_MS = 750;
 const ALL_CATEGORIES = [...CATEGORIES, "Baby", "Parking"];
 const DEFAULT_VISIBLE_CATEGORIES = [
   "Meal",
@@ -198,6 +197,7 @@ const COPY = {
     recentRecordsHint: "Remove mistakes if needed.",
     noRecords: "No records yet.",
     refresh: "Refresh",
+    refreshed: "Updated",
     paidFor: (payer: string, category: string) =>
       `${payer} paid for ${category}`,
     turns: (count: number) => `${count} turns`,
@@ -269,6 +269,7 @@ const COPY = {
     recentRecordsHint: "如有記錯可以刪除。",
     noRecords: "還沒有記錄。",
     refresh: "重新整理",
+    refreshed: "已更新",
     paidFor: (payer: string, category: string) => `${payer} 支付了 ${category}`,
     turns: (count: number) => `${count} 次`,
     darkMode: "深色模式",
@@ -484,17 +485,18 @@ export default function Home() {
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [recordLocked, setRecordLocked] = useState(false);
   const [savedCategory, setSavedCategory] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [lastUpdatedLabel, setLastUpdatedLabel] = useState<string>("");
-  const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshed, setRefreshed] = useState(false);
+  const [pullY, setPullY] = useState(0);
+  const pullStartYRef = useRef(0);
+  const pullingRef = useRef(false);
   const [categoryPreferences, setCategoryPreferences] = useState<
     CategoryPreference[]
   >(getDefaultCategoryPreferences());
   const [selectedPayer, setSelectedPayer] = useState<string | null>(null);
   const [fullRoomState, setFullRoomState] = useState<FullRoomState>(null);
   const recordInFlightRef = useRef(false);
-  const recordLockTimerRef = useRef<number | null>(null);
   const saveNoticeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -595,9 +597,6 @@ export default function Home() {
 
   useEffect(() => {
     return () => {
-      if (recordLockTimerRef.current) {
-        window.clearTimeout(recordLockTimerRef.current);
-      }
       if (saveNoticeTimerRef.current) {
         window.clearTimeout(saveNoticeTimerRef.current);
       }
@@ -606,21 +605,6 @@ export default function Home() {
 
   const locale = localeOverride ?? storedLocale;
   const copy = COPY[locale];
-
-  useEffect(() => {
-    const computeLabel = () => {
-      if (!lastUpdated) { setLastUpdatedLabel(""); return; }
-      const minutes = Math.floor((Date.now() - lastUpdated.getTime()) / 60000);
-      if (minutes < 1) {
-        setLastUpdatedLabel(locale === "zh-Hant" ? "剛剛" : "Just now");
-      } else {
-        setLastUpdatedLabel(locale === "zh-Hant" ? `${minutes} 分鐘前` : `${minutes}m ago`);
-      }
-    };
-    computeLabel();
-    const interval = window.setInterval(computeLabel, 30_000);
-    return () => window.clearInterval(interval);
-  }, [locale, lastUpdated]);
 
   const session =
     sessionOverride === undefined ? storedSession : sessionOverride;
@@ -730,8 +714,8 @@ export default function Home() {
 
         if (!cancelled) {
           setRecords(recordsBody.records);
-          setLastUpdated(new Date());
           setRefreshing(false);
+          setRefreshed(true);
           setErrorMessage((current) =>
             current === customRangeError ? null : current,
           );
@@ -757,7 +741,7 @@ export default function Home() {
     customStartDate,
     hasCustomRange,
     range,
-    refreshTick,
+    refreshKey,
     session,
   ]);
 
@@ -1001,20 +985,49 @@ export default function Home() {
 
   const activeSelectedPayer = selectedPayer ?? session?.userName ?? null;
 
+  const PTR_THRESHOLD = 72; // px to pull before triggering refresh
+
+  const triggerRefresh = () => {
+    if (refreshing) return;
+    setRefreshed(false);
+    setRefreshing(true);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) return;
+    pullStartYRef.current = e.touches[0].clientY;
+    pullingRef.current = true;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!pullingRef.current) return;
+    const dy = e.touches[0].clientY - pullStartYRef.current;
+    if (dy <= 0) {
+      setPullY(0);
+      return;
+    }
+    // Dampen the pull with sqrt for natural resistance
+    setPullY(Math.min(PTR_THRESHOLD * 1.5, Math.sqrt(dy) * 8));
+  };
+
+  const handleTouchEnd = () => {
+    if (!pullingRef.current) return;
+    pullingRef.current = false;
+    if (pullY >= PTR_THRESHOLD) {
+      triggerRefresh();
+    }
+    setPullY(0);
+  };
+
   const addRecord = async (category: string) => {
     if (!session || recordInFlightRef.current || recordLocked) {
       return;
     }
 
     recordInFlightRef.current = true;
+    // Show loading overlay immediately — no pre-timer
     setRecordLocked(true);
-    if (recordLockTimerRef.current) {
-      window.clearTimeout(recordLockTimerRef.current);
-    }
-    recordLockTimerRef.current = window.setTimeout(() => {
-      setRecordLocked(false);
-      recordLockTimerRef.current = null;
-    }, RECORD_CLICK_COOLDOWN_MS);
 
     const payer = activeSelectedPayer ?? session.userName;
     let saved = false;
@@ -1039,12 +1052,14 @@ export default function Home() {
       await loadRecords();
       saved = true;
       setErrorMessage(null);
+      // Switch overlay to tick phase; lock held until animation completes
       setSavedCategory(category);
       if (saveNoticeTimerRef.current) {
         window.clearTimeout(saveNoticeTimerRef.current);
       }
       saveNoticeTimerRef.current = window.setTimeout(() => {
         setSavedCategory(null);
+        setRecordLocked(false);
         saveNoticeTimerRef.current = null;
       }, SAVE_NOTICE_DURATION_MS);
     } catch (error) {
@@ -1053,10 +1068,7 @@ export default function Home() {
       );
     } finally {
       if (!saved) {
-        if (recordLockTimerRef.current) {
-          window.clearTimeout(recordLockTimerRef.current);
-          recordLockTimerRef.current = null;
-        }
+        // Error path: release lock immediately
         setRecordLocked(false);
       }
       recordInFlightRef.current = false;
@@ -1304,7 +1316,58 @@ export default function Home() {
       className={`app-shell mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 p-4 pb-8 sm:p-6 ${
         themeMode === "dark" ? "theme-dark" : ""
       }`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
+      {/* Pull-to-refresh indicator */}
+      {pullY > 0 && (
+        <div
+          className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
+          style={{
+            transform: `translateY(${pullY - 44}px)`,
+            transition: "none",
+          }}
+        >
+          <div
+            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-md ${themeMode === "dark" ? "bg-slate-800" : "bg-white"}`}
+          >
+            <RefreshCw
+              className={`h-5 w-5 transition-transform ${themeMode === "dark" ? "text-sky-400" : "text-sky-500"}`}
+              style={{
+                transform: `rotate(${(pullY / PTR_THRESHOLD) * 360}deg)`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+      {/* Refreshing spinner */}
+      {refreshing && (
+        <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center">
+          <div
+            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-md ${themeMode === "dark" ? "bg-slate-800" : "bg-white"}`}
+          >
+            <RefreshCw
+              className={`h-5 w-5 animate-spin ${themeMode === "dark" ? "text-sky-400" : "text-sky-500"}`}
+            />
+          </div>
+        </div>
+      )}
+      {/* Refreshed toast */}
+      {refreshed && !refreshing && (
+        <div
+          className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center"
+          onAnimationEnd={() => setRefreshed(false)}
+        >
+          <div
+            className={`flex items-center gap-2 rounded-full px-4 py-2 shadow-md text-sm font-semibold ${themeMode === "dark" ? "bg-slate-800 text-emerald-400" : "bg-white text-emerald-600"}`}
+            style={{ animation: "ptr-toast 1.8s ease forwards" }}
+          >
+            <Check className="h-4 w-4" />
+            {copy.refreshed}
+          </div>
+        </div>
+      )}
       <Card className="overflow-hidden border-0 shadow-md">
         <CardHeader className="space-y-3 bg-gradient-to-r from-sky-100 via-cyan-50 to-emerald-100 pb-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1420,28 +1483,8 @@ export default function Home() {
       ) : (
         <Card>
           <CardHeader>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <CardTitle>{copy.statsTitle}</CardTitle>
-                <CardDescription>{copy.statsHint}</CardDescription>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <button
-                  type="button"
-                  onClick={() => { setRefreshing(true); setRefreshTick((t) => t + 1); }}
-                  className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50 active:scale-95"
-                  aria-label={copy.refresh}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                  {copy.refresh}
-                </button>
-                {lastUpdated && (
-                  <span className="text-[11px] text-slate-400">
-                    {lastUpdatedLabel}
-                  </span>
-                )}
-              </div>
-            </div>
+            <CardTitle>{copy.statsTitle}</CardTitle>
+            <CardDescription>{copy.statsHint}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1619,28 +1662,8 @@ export default function Home() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <CardTitle>{copy.recentRecords}</CardTitle>
-              <CardDescription>{copy.recentRecordsHint}</CardDescription>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <button
-                type="button"
-                onClick={() => { setRefreshing(true); setRefreshTick((t) => t + 1); }}
-                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50 active:scale-95"
-                aria-label={copy.refresh}
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                {copy.refresh}
-              </button>
-              {lastUpdated && (
-                <span className="text-[11px] text-slate-400">
-                  {lastUpdatedLabel}
-                </span>
-              )}
-            </div>
-          </div>
+          <CardTitle>{copy.recentRecords}</CardTitle>
+          <CardDescription>{copy.recentRecordsHint}</CardDescription>
         </CardHeader>
         <CardContent>
           {records.length === 0 ? (
@@ -1698,9 +1721,9 @@ export default function Home() {
         </p>
       ) : null}
 
-      {savedCategory ? (
+      {recordLocked ? (
         <div
-          className={`pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4 ${
+          className={`fixed inset-0 z-[70] flex items-center justify-center p-4 ${
             themeMode === "dark" ? "bg-slate-950/55" : "bg-slate-900/25"
           }`}
         >
@@ -1711,32 +1734,57 @@ export default function Home() {
                 : "border border-emerald-200 bg-white/95"
             }`}
           >
-            <div className="relative mx-auto mb-3 flex h-16 w-16 items-center justify-center">
-              <span
-                className={`absolute h-16 w-16 rounded-full animate-ping ${
-                  themeMode === "dark"
-                    ? "bg-emerald-400/45"
-                    : "bg-emerald-300/70"
-                }`}
-              />
-              <span className="relative inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg">
-                <Check className="h-7 w-7 text-white" />
-              </span>
-            </div>
-            <p
-              className={`text-base font-bold ${
-                themeMode === "dark" ? "text-emerald-200" : "text-emerald-800"
-              }`}
-            >
-              {copy.savedMarked}
-            </p>
-            <p
-              className={`mt-1 text-sm ${
-                themeMode === "dark" ? "text-emerald-100" : "text-emerald-700"
-              }`}
-            >
-              {copy.savedRecord(getCategoryLabel(savedCategory, locale))}
-            </p>
+            {savedCategory ? (
+              <>
+                <div className="relative mx-auto mb-3 flex h-16 w-16 items-center justify-center">
+                  <span
+                    className={`absolute h-16 w-16 rounded-full animate-ping ${
+                      themeMode === "dark"
+                        ? "bg-emerald-400/45"
+                        : "bg-emerald-300/70"
+                    }`}
+                  />
+                  <span className="animate-tick-pop relative inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg">
+                    <Check className="h-7 w-7 text-white" />
+                  </span>
+                </div>
+                <p
+                  className={`text-base font-bold ${
+                    themeMode === "dark"
+                      ? "text-emerald-200"
+                      : "text-emerald-800"
+                  }`}
+                >
+                  {copy.savedMarked}
+                </p>
+                <p
+                  className={`mt-1 text-sm ${
+                    themeMode === "dark"
+                      ? "text-emerald-100"
+                      : "text-emerald-700"
+                  }`}
+                >
+                  {copy.savedRecord(getCategoryLabel(savedCategory, locale))}
+                </p>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <span
+                  className={`inline-block h-12 w-12 animate-spin rounded-full border-4 border-current border-t-transparent ${
+                    themeMode === "dark"
+                      ? "text-emerald-400"
+                      : "text-emerald-500"
+                  }`}
+                />
+                <p
+                  className={`text-sm font-semibold ${
+                    themeMode === "dark" ? "text-slate-300" : "text-slate-600"
+                  }`}
+                >
+                  {locale === "zh-Hant" ? "儲存中…" : "Saving…"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
