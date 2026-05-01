@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Couple Expense Tracker
 
-## Getting Started
+A no-password, room-based tracker for couples to log "who paid" events by category (without tracking money).
 
-First, run the development server:
+## Stack
+
+- Next.js App Router
+- Tailwind CSS
+- Lucide React icons
+- Prisma ORM
+- MongoDB Atlas (M0)
+- Shadcn-style UI components
+
+## Features
+
+- Create room or join room with a 6-character room ID (example: `SUN-42`)
+- Device-local session via `localStorage` (room ID + display name)
+- Fixed categories only: Breakfast, Lunch, Dinner, Groceries, Snacks, Transport, Entertainment
+- Action screen with one-tap "I Paid" category buttons
+- Stats screen with ranges: Last 1 Day, Last 7 Days, Last 30 Days, All Time
+- Recent records list with delete button to remove mistakes
+
+## Prisma Models
+
+- `Room`: `id`, `createdAt`
+- `Record`: `id`, `roomId`, `paidBy`, `category`, `createdAt`
+
+Schema file: `prisma/schema.prisma`
+
+## Environment
+
+Create `.env` and set:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Local Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npx prisma generate
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open http://localhost:3000
 
-## Learn More
+## API Routes
 
-To learn more about Next.js, take a look at the following resources:
+- `POST /api/rooms`
+  - body `{ mode: "create" }` -> creates a room
+  - body `{ mode: "join", roomId: "SUN-42" }` -> validates room exists
+- `GET /api/records?roomId=SUN-42&range=7d`
+  - range: `1d`, `7d`, `30d`, `all`
+- `POST /api/records`
+  - body `{ roomId, paidBy, category }`
+- `DELETE /api/records?id=<recordId>`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy (Vercel)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push repo to GitHub.
+2. Import project in Vercel.
+3. Add `DATABASE_URL` in Vercel environment variables.
+4. Deploy.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No extra server setup is needed.

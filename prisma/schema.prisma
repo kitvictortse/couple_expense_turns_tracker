@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id        String   @id @map("_id")
+  members   String[]
+  createdAt DateTime @default(now())
+  records   Record[]
+}
+
+model Record {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  roomId    String
+  paidBy    String
+  category  String
+  createdAt DateTime @default(now())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt(sort: Desc)])
+}
