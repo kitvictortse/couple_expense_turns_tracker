@@ -1819,7 +1819,7 @@ export default function Home() {
           onClick={() => setDatePickerOpen(false)}
         >
           <div
-            className="my-6 w-full max-w-sm max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            className="my-6 w-full max-w-sm max-h-[calc(100vh-3rem)] overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
@@ -1838,7 +1838,7 @@ export default function Home() {
 
             <p className="text-xs text-slate-500">{copy.customDatesHint}</p>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3 flex flex-col gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-600">
                   {copy.startDate}
@@ -1847,6 +1847,7 @@ export default function Home() {
                   type="date"
                   value={customStartDate}
                   max={customEndDate || today}
+                  className="w-full min-w-0"
                   onChange={(event) => {
                     setCustomStartDate(event.target.value);
                     setErrorMessage(null);
@@ -1862,6 +1863,7 @@ export default function Home() {
                   value={customEndDate}
                   min={customStartDate || undefined}
                   max={today}
+                  className="w-full min-w-0"
                   onChange={(event) => {
                     setCustomEndDate(event.target.value);
                     setErrorMessage(null);

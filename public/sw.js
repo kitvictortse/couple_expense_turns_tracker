@@ -1,7 +1,7 @@
 // Your Turn - PWA Service Worker
 // Network-first for pages & API, cache-first for static assets
 
-const CACHE_NAME = "your-turn-v2";
+const CACHE_NAME = "your-turn-v3";
 
 const STATIC_ASSETS = ["/"];
 
@@ -20,9 +20,17 @@ self.addEventListener("activate", (event) => {
         Promise.all(
           keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)),
         ),
+      )
+      .then(() => self.clients.claim())
+      .then(() =>
+        // Force-reload all open windows so they pick up the new SW immediately
+        self.clients
+          .matchAll({ type: "window", includeUncontrolled: true })
+          .then((windowClients) => {
+            windowClients.forEach((client) => client.navigate(client.url));
+          }),
       ),
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
