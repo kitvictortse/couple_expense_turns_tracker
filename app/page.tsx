@@ -1282,9 +1282,10 @@ export default function Home() {
 
   return (
     <main
-      className={`app-shell mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 p-4 pb-8 sm:p-6 ${
+      className={`app-shell mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 p-4 sm:p-6 ${
         themeMode === "dark" ? "theme-dark" : ""
       }`}
+      style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}
     >
       {/* Floating refresh button */}
       <button
@@ -1292,7 +1293,8 @@ export default function Home() {
         onClick={triggerRefresh}
         disabled={refreshing}
         aria-label={copy.refresh}
-        className={`fixed bottom-6 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all active:scale-90 disabled:opacity-60 sm:bottom-8 sm:right-8 ${
+        style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
+        className={`fixed right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all active:scale-90 disabled:opacity-60 sm:right-8 ${
           themeMode === "dark"
             ? "bg-slate-700 text-sky-400 hover:bg-slate-600"
             : "bg-white text-sky-500 hover:bg-sky-50"
