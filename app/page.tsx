@@ -558,7 +558,8 @@ export default function Home() {
       return;
     }
 
-    const shouldLockBackgroundScroll = settingsOpen || datePickerOpen;
+    const shouldLockBackgroundScroll =
+      settingsOpen || datePickerOpen || categoryFilterOpen;
     if (!shouldLockBackgroundScroll) {
       return;
     }
@@ -590,7 +591,7 @@ export default function Home() {
       document.body.style.width = originalBodyWidth;
       window.scrollTo(0, scrollY);
     };
-  }, [datePickerOpen, settingsOpen]);
+  }, [categoryFilterOpen, datePickerOpen, settingsOpen]);
 
   useEffect(() => {
     return () => {
