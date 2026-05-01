@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  RefreshCw,
   Settings,
   Trash2,
 } from "lucide-react";
@@ -196,6 +197,7 @@ const COPY = {
     recentRecords: "Recent Records",
     recentRecordsHint: "Remove mistakes if needed.",
     noRecords: "No records yet.",
+    refresh: "Refresh",
     paidFor: (payer: string, category: string) =>
       `${payer} paid for ${category}`,
     turns: (count: number) => `${count} turns`,
@@ -266,6 +268,7 @@ const COPY = {
     recentRecords: "最近記錄",
     recentRecordsHint: "如有記錯可以刪除。",
     noRecords: "還沒有記錄。",
+    refresh: "重新整理",
     paidFor: (payer: string, category: string) => `${payer} 支付了 ${category}`,
     turns: (count: number) => `${count} 次`,
     darkMode: "深色模式",
@@ -481,6 +484,10 @@ export default function Home() {
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [recordLocked, setRecordLocked] = useState(false);
   const [savedCategory, setSavedCategory] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdatedLabel, setLastUpdatedLabel] = useState<string>("");
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [categoryPreferences, setCategoryPreferences] = useState<
     CategoryPreference[]
   >(getDefaultCategoryPreferences());
@@ -599,6 +606,22 @@ export default function Home() {
 
   const locale = localeOverride ?? storedLocale;
   const copy = COPY[locale];
+
+  useEffect(() => {
+    const computeLabel = () => {
+      if (!lastUpdated) { setLastUpdatedLabel(""); return; }
+      const minutes = Math.floor((Date.now() - lastUpdated.getTime()) / 60000);
+      if (minutes < 1) {
+        setLastUpdatedLabel(locale === "zh-Hant" ? "剛剛" : "Just now");
+      } else {
+        setLastUpdatedLabel(locale === "zh-Hant" ? `${minutes} 分鐘前` : `${minutes}m ago`);
+      }
+    };
+    computeLabel();
+    const interval = window.setInterval(computeLabel, 30_000);
+    return () => window.clearInterval(interval);
+  }, [locale, lastUpdated]);
+
   const session =
     sessionOverride === undefined ? storedSession : sessionOverride;
 
@@ -707,12 +730,15 @@ export default function Home() {
 
         if (!cancelled) {
           setRecords(recordsBody.records);
+          setLastUpdated(new Date());
+          setRefreshing(false);
           setErrorMessage((current) =>
             current === customRangeError ? null : current,
           );
         }
       } catch (error) {
         if (!cancelled) {
+          setRefreshing(false);
           setErrorMessage(
             error instanceof Error ? error.message : "Failed to load records.",
           );
@@ -731,6 +757,7 @@ export default function Home() {
     customStartDate,
     hasCustomRange,
     range,
+    refreshTick,
     session,
   ]);
 
@@ -1393,8 +1420,28 @@ export default function Home() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>{copy.statsTitle}</CardTitle>
-            <CardDescription>{copy.statsHint}</CardDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle>{copy.statsTitle}</CardTitle>
+                <CardDescription>{copy.statsHint}</CardDescription>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <button
+                  type="button"
+                  onClick={() => { setRefreshing(true); setRefreshTick((t) => t + 1); }}
+                  className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50 active:scale-95"
+                  aria-label={copy.refresh}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                  {copy.refresh}
+                </button>
+                {lastUpdated && (
+                  <span className="text-[11px] text-slate-400">
+                    {lastUpdatedLabel}
+                  </span>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1572,8 +1619,28 @@ export default function Home() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{copy.recentRecords}</CardTitle>
-          <CardDescription>{copy.recentRecordsHint}</CardDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle>{copy.recentRecords}</CardTitle>
+              <CardDescription>{copy.recentRecordsHint}</CardDescription>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={() => { setRefreshing(true); setRefreshTick((t) => t + 1); }}
+                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50 active:scale-95"
+                aria-label={copy.refresh}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                {copy.refresh}
+              </button>
+              {lastUpdated && (
+                <span className="text-[11px] text-slate-400">
+                  {lastUpdatedLabel}
+                </span>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {records.length === 0 ? (
