@@ -520,7 +520,7 @@ export default function Home() {
     localStorage.setItem(THEME_STORAGE_KEY, themeMode);
     document.documentElement.setAttribute("data-theme", themeMode);
 
-    const nextThemeColor = themeMode === "dark" ? "#020617" : "#f4f9fc";
+    const nextThemeColor = themeMode === "dark" ? "#0f172a" : "#0ea5e9";
     let themeColorMeta = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]',
     );
