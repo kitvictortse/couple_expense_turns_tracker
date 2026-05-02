@@ -43,6 +43,12 @@ type RecordItem = {
   createdAt: string;
 };
 
+type PendingDeleteRecord = {
+  id: string;
+  paidBy: string;
+  category: string;
+};
+
 type LandingMode = "create" | "join";
 type ScreenMode = "action" | "stats";
 type Locale = "en" | "zh-Hant";
@@ -196,6 +202,12 @@ const COPY = {
     recentRecords: "Recent Records",
     recentRecordsHint: "Remove mistakes if needed.",
     noRecords: "No records yet.",
+    deleteRecordTitle: "Delete this record?",
+    deleteRecordWarning: "This action is irreversible and cannot be undone.",
+    deleteRecordDetail: (payer: string, category: string) =>
+      `${payer} paid for ${category}`,
+    cancel: "Cancel",
+    confirmDelete: "Delete",
     refresh: "Refresh",
     refreshed: "Updated",
     paidFor: (payer: string, category: string) =>
@@ -273,6 +285,12 @@ const COPY = {
     recentRecords: "最近記錄",
     recentRecordsHint: "如有記錯可以刪除。",
     noRecords: "還沒有記錄。",
+    deleteRecordTitle: "確定要刪除這筆記錄嗎？",
+    deleteRecordWarning: "此操作無法復原。",
+    deleteRecordDetail: (payer: string, category: string) =>
+      `${payer} 支付了 ${category}`,
+    cancel: "取消",
+    confirmDelete: "刪除",
     refresh: "重新整理",
     refreshed: "已更新",
     paidFor: (payer: string, category: string) => `${payer} 支付了 ${category}`,
@@ -496,6 +514,8 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
   const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
+  const [pendingDeleteRecord, setPendingDeleteRecord] =
+    useState<PendingDeleteRecord | null>(null);
   const [categoryPreferences, setCategoryPreferences] = useState<
     CategoryPreference[]
   >(getDefaultCategoryPreferences());
@@ -1675,13 +1695,14 @@ export default function Home() {
                         key={categoryPieAnimationKey}
                         width={176}
                         height={176}
+                        margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
                       >
                         <Pie
                           data={categoryBreakdown.items}
                           dataKey="count"
                           nameKey="category"
-                          cx={88}
-                          cy={88}
+                          cx="50%"
+                          cy="50%"
                           innerRadius={50}
                           outerRadius={72}
                           stroke="none"
@@ -1787,7 +1808,13 @@ export default function Home() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteRecord(record.id)}
+                      onClick={() =>
+                        setPendingDeleteRecord({
+                          id: record.id,
+                          paidBy: record.paidBy,
+                          category: record.category,
+                        })
+                      }
                       disabled={Boolean(deletingRecordId)}
                       aria-label="Delete record"
                       className="shrink-0 text-slate-300 hover:bg-slate-100 hover:text-slate-600"
@@ -1806,6 +1833,60 @@ export default function Home() {
         <p className="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
           {errorMessage}
         </p>
+      ) : null}
+
+      {pendingDeleteRecord ? (
+        <div
+          className="fixed inset-0 z-[65] flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={() => {
+            if (!deletingRecordId) {
+              setPendingDeleteRecord(null);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-base font-semibold text-slate-800">
+              {copy.deleteRecordTitle}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              {copy.deleteRecordWarning}
+            </p>
+            <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {copy.deleteRecordDetail(
+                pendingDeleteRecord.paidBy,
+                getCategoryLabel(pendingDeleteRecord.category, locale),
+              )}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPendingDeleteRecord(null)}
+                disabled={Boolean(deletingRecordId)}
+              >
+                {copy.cancel}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (deletingRecordId) {
+                    return;
+                  }
+                  const recordId = pendingDeleteRecord.id;
+                  setPendingDeleteRecord(null);
+                  void deleteRecord(recordId);
+                }}
+                disabled={Boolean(deletingRecordId)}
+                className="bg-rose-600 text-white hover:bg-rose-700"
+              >
+                {copy.confirmDelete}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {recordLocked ? (

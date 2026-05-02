@@ -123,6 +123,146 @@
 - Steps: Open Settings on iOS Safari and reorder categories using up/down controls.
 - Expected: Category order updates immediately and persists after closing/reopening Settings.
 
+## Single-Member Room Gating (commit 1dec0b1)
+
+24. Single-member room — homepage waiting card
+
+- Steps: Create a new account (no partner joined yet).
+- Expected: A "Waiting for your partner" card appears on the homepage showing the Account ID and a share hint.
+
+25. Single-member room — Account ID copy button
+
+- Steps: On the waiting card, click the copy button next to the Account ID field.
+- Expected: Button switches to a check icon briefly; clipboard contains the Account ID.
+
+26. Single-member room — record blocked via button
+
+- Steps: On a single-member account, switch to action screen and click any category button.
+- Expected: No record is created; an error message appears stating two people are needed.
+
+27. Single-member room — payer chips disabled
+
+- Steps: On a single-member account, view the action screen.
+- Expected: Payer selection chips are visually disabled (opacity reduced) and not interactive.
+
+28. Single-member room — category buttons disabled
+
+- Steps: On a single-member account, view the action screen.
+- Expected: All category buttons are disabled.
+
+29. Single-member room — amber warning banner
+
+- Steps: On a single-member account, view the action screen.
+- Expected: An amber/yellow warning banner is shown above the payer chips describing the two-person requirement.
+
+30. Two-member room — waiting card hidden
+
+- Steps: Connect a second member to the account.
+- Expected: The "Waiting for your partner" card is no longer shown on the homepage.
+
+31. Two-member room — record logging re-enabled
+
+- Steps: After a second member joins, attempt to log a record.
+- Expected: Record is saved successfully with no error.
+
+## Floating Refresh Button (commits 80b65bf, 78fef2d)
+
+32. Refresh FAB visible on action screen
+
+- Steps: Log in and view the action screen.
+- Expected: A circular refresh button is visible in the bottom-right corner.
+
+33. Refresh FAB — spinning state during refresh
+
+- Steps: Tap the refresh button.
+- Expected: The icon spins while data is loading; button is disabled during the spin.
+
+34. Refresh FAB — "Updated" toast after success
+
+- Steps: Tap the refresh button; wait for completion.
+- Expected: A small toast ("Updated" / "已更新") slides in at the top and fades out automatically.
+
+35. Refresh FAB — syncs member list
+
+- Steps: While on the action screen, have the second user join; tap the refresh button.
+- Expected: Member list updates (payer chips reflect the new member) without re-logging in.
+
+36. Refresh FAB — disabled during delete
+
+- Steps: Initiate a record delete.
+- Expected: The refresh FAB is disabled (opacity reduced) until the delete and reload cycle completes.
+
+37. Refresh FAB — safe-area positioning
+
+- Steps: View the app in iOS Safari PWA mode.
+- Expected: The FAB does not overlap the home indicator bar; sits visibly above the bottom edge.
+
+## Save Overlay (commit 1807c48)
+
+38. Save overlay — spinner shown immediately
+
+- Steps: Tap a category button to save.
+- Expected: A loading spinner overlay appears instantly while the record is being saved.
+
+39. Save overlay — tick animation on success
+
+- Steps: Save a record successfully.
+- Expected: The spinner transitions to an animated green tick circle with a ping ripple effect.
+
+40. Save overlay — title and category text
+
+- Steps: Save a record.
+- Expected: Overlay shows the "Recorded" / "已記錄" title and the saved category name below the tick.
+
+41. Save overlay — auto-dismiss timing
+
+- Steps: Save a record and observe the overlay.
+- Expected: Overlay dismisses automatically after ~750 ms with no manual interaction required.
+
+## PWA (commits 6c48e13, f256a31)
+
+42. PWA installable
+
+- Steps: Open app in Chrome; check browser install/add-to-homescreen prompt.
+- Expected: Browser offers to install the app.
+
+43. PWA theme color — light mode
+
+- Steps: Install or open the app in light mode.
+- Expected: Browser/status bar background uses the brand blue color (#0ea5e9).
+
+44. PWA theme color — dark mode
+
+- Steps: Switch to dark mode.
+- Expected: Browser/status bar background switches to dark blue (#0f172a).
+
+45. PWA app name
+
+- Steps: Add to home screen and view the icon label.
+- Expected: App name shows "Your Turn".
+
+46. Service worker — cached assets load offline
+
+- Steps: Load the app once, disable network, reload.
+- Expected: Static assets serve from cache; app shell renders without network.
+
+47. Service worker — navigation requests use network-first
+
+- Steps: Load a fresh deployment; reload the page.
+- Expected: Latest HTML is always fetched first; stale HTML is not served from cache.
+
+## Duplicate Delete Prevention (commit 87f892f)
+
+48. Duplicate delete lock — single API call
+
+- Steps: Tap the delete button on a record rapidly multiple times.
+- Expected: Only one DELETE API call is made; no duplicate delete errors.
+
+49. Delete lock — UI feedback
+
+- Steps: Start a delete operation.
+- Expected: All delete buttons are disabled (greyed out) until the delete + reload cycle finishes.
+
 ## Non-Functional Checks
 
 22. Lint
