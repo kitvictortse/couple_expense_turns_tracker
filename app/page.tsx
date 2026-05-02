@@ -587,7 +587,10 @@ export default function Home() {
     }
 
     const shouldLockBackgroundScroll =
-      settingsOpen || datePickerOpen || categoryFilterOpen;
+      settingsOpen ||
+      datePickerOpen ||
+      categoryFilterOpen ||
+      Boolean(pendingDeleteRecord);
     if (!shouldLockBackgroundScroll) {
       return;
     }
@@ -619,7 +622,7 @@ export default function Home() {
       document.body.style.width = originalBodyWidth;
       window.scrollTo(0, scrollY);
     };
-  }, [categoryFilterOpen, datePickerOpen, settingsOpen]);
+  }, [categoryFilterOpen, datePickerOpen, pendingDeleteRecord, settingsOpen]);
 
   useEffect(() => {
     return () => {
