@@ -488,6 +488,7 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
+  const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
   const [categoryPreferences, setCategoryPreferences] = useState<
     CategoryPreference[]
   >(getDefaultCategoryPreferences());
@@ -1047,6 +1048,11 @@ export default function Home() {
   };
 
   const deleteRecord = async (id: string) => {
+    if (deletingRecordId) {
+      return;
+    }
+
+    setDeletingRecordId(id);
     setLoading(true);
     try {
       const response = await fetch(
@@ -1061,6 +1067,7 @@ export default function Home() {
         throw new Error(body.error ?? "Could not delete record.");
       }
 
+      setRefreshing(true);
       await loadRecords();
       setErrorMessage(null);
     } catch (error) {
@@ -1068,6 +1075,8 @@ export default function Home() {
         error instanceof Error ? error.message : "Failed to delete record.",
       );
     } finally {
+      setRefreshing(false);
+      setDeletingRecordId(null);
       setLoading(false);
     }
   };
@@ -1292,10 +1301,13 @@ export default function Home() {
       <button
         type="button"
         onClick={triggerRefresh}
-        disabled={refreshing}
+        disabled={refreshing || Boolean(deletingRecordId)}
         aria-label={copy.refresh}
-        style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
-        className={`fixed right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all active:scale-90 disabled:opacity-60 sm:right-8 ${
+        style={{
+          right: "calc(1rem + env(safe-area-inset-right, 0px))",
+          bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
+        }}
+        className={`fixed z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all active:scale-90 disabled:opacity-60 ${
           themeMode === "dark"
             ? "bg-slate-700 text-sky-400 hover:bg-slate-600"
             : "bg-white text-sky-500 hover:bg-sky-50"
@@ -1656,6 +1668,7 @@ export default function Home() {
                       variant="ghost"
                       size="icon"
                       onClick={() => deleteRecord(record.id)}
+                      disabled={Boolean(deletingRecordId)}
                       aria-label="Delete record"
                       className="shrink-0 text-slate-300 hover:bg-slate-100 hover:text-slate-600"
                     >
@@ -1838,8 +1851,8 @@ export default function Home() {
 
             <p className="text-xs text-slate-500">{copy.customDatesHint}</p>
 
-            <div className="mt-3 flex flex-col gap-3">
-              <div className="space-y-1.5">
+            <div className="mt-3 flex min-w-0 flex-col gap-3">
+              <div className="min-w-0 space-y-1.5">
                 <label className="text-xs font-medium text-slate-600">
                   {copy.startDate}
                 </label>
@@ -1854,7 +1867,7 @@ export default function Home() {
                   }}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <label className="text-xs font-medium text-slate-600">
                   {copy.endDate}
                 </label>
@@ -1909,14 +1922,17 @@ export default function Home() {
 
       {settingsOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-slate-900/35 px-4 pt-5 pb-4 sm:items-center sm:pt-4"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/35 px-4 pt-5 pb-4 sm:items-center sm:pt-4"
           onClick={() => {
             setSettingsOpen(false);
             setUnbindArmed(false);
           }}
         >
           <div
-            className="w-full max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            className="my-4 w-full max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            style={{
+              paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
+            }}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
