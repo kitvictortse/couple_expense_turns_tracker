@@ -219,6 +219,11 @@ const COPY = {
     noVisibleCategories: "No categories are visible. Turn at least one on.",
     availableSeats: (available: number, total: number) =>
       `Available Seats: ${available}/${total}`,
+    waitingForPartner: "Waiting for your partner",
+    waitingForPartnerHint:
+      "Share this Account ID so your partner can join this account.",
+    roomNeedsTwoPeople:
+      "You need two people in this account before you can record payments.",
     accountIdShareHint:
       "Share your Account ID with your partner so both of you can share records with each other.",
     unbindWarning:
@@ -290,6 +295,9 @@ const COPY = {
     noVisibleCategories: "目前沒有顯示的分類，請至少開啟一項。",
     availableSeats: (available: number, total: number) =>
       `可用名額：${available}/${total}`,
+    waitingForPartner: "等待伴侶加入",
+    waitingForPartnerHint: "請分享這個帳號 ID，讓伴侶加入此帳號。",
+    roomNeedsTwoPeople: "需要兩位成員加入此帳號後，才可記錄付款。",
     accountIdShareHint: "將帳號 ID 分享給伴侶，雙方即可互相共享記錄。",
     unbindWarning: "建議先保存帳號 ID。沒有帳號 ID 將無法找回。",
     unbindConfirmNow: "再按一次即可立即解除帳號綁定。",
@@ -485,7 +493,6 @@ export default function Home() {
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [recordLocked, setRecordLocked] = useState(false);
   const [savedCategory, setSavedCategory] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
   const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
@@ -740,7 +747,6 @@ export default function Home() {
     customStartDate,
     hasCustomRange,
     range,
-    refreshKey,
     session,
   ]);
 
@@ -809,14 +815,42 @@ export default function Home() {
     ],
   );
 
-  const loadRecords = async () => {
-    if (!session?.roomId) {
+  const syncSessionMembers = (
+    currentSession: Session,
+    newMembers: string[],
+  ) => {
+    if (newMembers.length === 0) {
       return;
+    }
+
+    const currentMembers = currentSession.members ?? [];
+    const membersChanged =
+      newMembers.length !== currentMembers.length ||
+      newMembers.some((member, index) => member !== currentMembers[index]);
+
+    if (!membersChanged) {
+      return;
+    }
+
+    const updatedSession = { ...currentSession, members: newMembers };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updatedSession));
+    setSessionOverride(updatedSession);
+  };
+
+  const loadRecords = async ({
+    syncMembers = false,
+    roomSession = session,
+  }: {
+    syncMembers?: boolean;
+    roomSession?: Session | null;
+  } = {}) => {
+    if (!roomSession?.roomId) {
+      return false;
     }
 
     try {
       const query = new URLSearchParams({
-        roomId: session.roomId,
+        roomId: roomSession.roomId,
         range,
       });
 
@@ -825,22 +859,42 @@ export default function Home() {
         query.set("endDate", customEndDate);
       }
 
-      const response = await fetch(`/api/records?${query.toString()}`, {
-        cache: "no-store",
-      });
+      const [recordsResponse, membersResponse] = await Promise.all([
+        fetch(`/api/records?${query.toString()}`, {
+          cache: "no-store",
+        }),
+        syncMembers
+          ? fetch(
+              `/api/rooms?roomId=${encodeURIComponent(roomSession.roomId)}`,
+              {
+                cache: "no-store",
+              },
+            )
+          : Promise.resolve(null),
+      ]);
 
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
+      if (!recordsResponse.ok) {
+        const body = (await recordsResponse.json()) as { error?: string };
         throw new Error(body.error ?? "Could not load records.");
       }
 
-      const body = (await response.json()) as { records: RecordItem[] };
+      const body = (await recordsResponse.json()) as { records: RecordItem[] };
       setRecords(body.records);
+
+      if (membersResponse?.ok) {
+        const membersBody = (await membersResponse.json()) as {
+          members: string[];
+        };
+        syncSessionMembers(roomSession, membersBody.members);
+      }
+
       setErrorMessage(null);
+      return true;
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to load records.",
       );
+      return false;
     }
   };
 
@@ -988,11 +1042,21 @@ export default function Home() {
     if (refreshing) return;
     setRefreshed(false);
     setRefreshing(true);
-    setRefreshKey((k) => k + 1);
+    void loadRecords({ syncMembers: true }).then((didRefresh) => {
+      setRefreshing(false);
+      if (didRefresh) {
+        setRefreshed(true);
+      }
+    });
   };
 
   const addRecord = async (category: string) => {
     if (!session || recordInFlightRef.current || recordLocked) {
+      return;
+    }
+
+    if (roomNeedsPartner) {
+      setErrorMessage(copy.roomNeedsTwoPeople);
       return;
     }
 
@@ -1020,7 +1084,7 @@ export default function Home() {
         throw new Error(body.error ?? "Could not save record.");
       }
 
-      await loadRecords();
+      await loadRecords({ syncMembers: true });
       saved = true;
       setErrorMessage(null);
       // Switch overlay to tick phase; lock held until animation completes
@@ -1068,7 +1132,7 @@ export default function Home() {
       }
 
       setRefreshing(true);
-      await loadRecords();
+      await loadRecords({ syncMembers: true });
       setErrorMessage(null);
     } catch (error) {
       setErrorMessage(
@@ -1105,6 +1169,7 @@ export default function Home() {
     .map((item) => item.name);
   const availableSeats = Math.max(0, MAX_ACCOUNT_MEMBERS - members.length);
   const isAccountFull = availableSeats === 0;
+  const roomNeedsPartner = members.length < 2;
 
   const handleCategoryVisibilityToggle = (name: string) => {
     setCategoryPreferences((current) =>
@@ -1304,8 +1369,8 @@ export default function Home() {
         disabled={refreshing || Boolean(deletingRecordId)}
         aria-label={copy.refresh}
         style={{
-          right: "calc(1rem + env(safe-area-inset-right, 0px))",
-          bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
+          right: "max(0.75rem, env(safe-area-inset-right, 0px))",
+          bottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
         }}
         className={`fixed z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all active:scale-90 disabled:opacity-60 ${
           themeMode === "dark"
@@ -1387,6 +1452,54 @@ export default function Home() {
         </CardHeader>
       </Card>
 
+      {roomNeedsPartner ? (
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle>{copy.waitingForPartner}</CardTitle>
+            <CardDescription>{copy.waitingForPartnerHint}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold text-slate-600">
+                {copy.roomId}
+              </p>
+              {!isAccountFull ? (
+                <>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {copy.availableSeats(availableSeats, MAX_ACCOUNT_MEMBERS)}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {copy.accountIdShareHint}
+                  </p>
+                </>
+              ) : null}
+              <div className="mt-2 relative">
+                <Input
+                  readOnly
+                  value={session.roomId}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onClick={(event) => event.currentTarget.select()}
+                  className="pr-12 font-mono text-sm tracking-[0.08em] text-slate-700"
+                  aria-label={copy.roomId}
+                />
+                <button
+                  type="button"
+                  onClick={copyRoomId}
+                  className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  title={copy.roomId}
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {screen === "action" ? (
         <Card>
           <CardHeader>
@@ -1394,16 +1507,23 @@ export default function Home() {
             <CardDescription>{copy.whoPaidHint}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
+            {roomNeedsPartner ? (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {copy.roomNeedsTwoPeople}
+              </p>
+            ) : null}
+
             <div className="flex flex-wrap gap-2">
               {whoPaidMembers.map((member) => (
                 <button
                   key={member}
+                  disabled={roomNeedsPartner}
                   onClick={() => setSelectedPayer(member)}
                   className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-all active:scale-95 ${
                     activeSelectedPayer === member
                       ? "bg-sky-600 text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                  } disabled:opacity-50`}
                 >
                   {member === session.userName
                     ? `${member} (${copy.me})`
@@ -1430,7 +1550,7 @@ export default function Home() {
                 return (
                   <button
                     key={category}
-                    disabled={loading || recordLocked}
+                    disabled={loading || recordLocked || roomNeedsPartner}
                     onClick={() => addRecord(category)}
                     className={`flex h-20 flex-col items-center justify-center gap-1 rounded-2xl text-sm font-semibold transition-all active:scale-95 disabled:opacity-50 ${
                       themeMode === "dark"
@@ -1860,7 +1980,7 @@ export default function Home() {
                   type="date"
                   value={customStartDate}
                   max={customEndDate || today}
-                  className="w-full min-w-0"
+                  className="w-full min-w-0 max-w-full box-border ios-date-input"
                   onChange={(event) => {
                     setCustomStartDate(event.target.value);
                     setErrorMessage(null);
@@ -1876,7 +1996,7 @@ export default function Home() {
                   value={customEndDate}
                   min={customStartDate || undefined}
                   max={today}
-                  className="w-full min-w-0"
+                  className="w-full min-w-0 max-w-full box-border ios-date-input"
                   onChange={(event) => {
                     setCustomEndDate(event.target.value);
                     setErrorMessage(null);

@@ -31,6 +31,22 @@ label {
   -webkit-tap-highlight-color: transparent;
 }
 
+input[type="date"].ios-date-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="date"].ios-date-input::-webkit-date-and-time-value,
+input[type="date"].ios-date-input::-webkit-datetime-edit,
+input[type="date"].ios-date-input::-webkit-datetime-edit-fields-wrapper {
+  min-width: 0;
+  max-width: 100%;
+}
+
 body {
   min-height: 100vh;
   background-attachment: fixed;
